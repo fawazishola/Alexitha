@@ -111,8 +111,8 @@ alexthia/
 - Multi-domain training (MATH-Hard + GSM8K + SciQ)
 - 7,304 examples across 3 reasoning domains
 - QLoRA optimization for consumer GPU (T4/P100)
-- Optimized for Kaggle free tier (1-2 hour training)
-- Training in progress (December 26, 2025)
+- Optimized for Kaggle free tier 
+
 
 ### Planned (v1.0 - January 2026)
 - Tenet dataset integration (10k game theory examples)
