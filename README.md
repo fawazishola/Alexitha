@@ -188,9 +188,9 @@ If you use Alexthia in your research, please cite:
 ```bibtex
 @software{alexthia2025,
   title={Alexthia: LLM with Formal Verification},
-  author={[Your Name]},
+  author={Fawaz Ishola},
   year={2025},
-  url={https://github.com/yourusername/alexthia}
+  url={https://github.com/fawazishola/alexthia}
 }
 ```
 
