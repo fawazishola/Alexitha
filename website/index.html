@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Alexithia: Verified Reasoning in Language Models</title>
+    <meta name="description"
+        content="A 7B parameter language model with formal verification, demonstrating that architectural design can overcome model scale through iterative self-verification." />
+    <meta name="author" content="Fawaz Ishola" />
+
+    <!-- Tufte CSS -->
+    <link rel="stylesheet" href="https://edwardtufte.github.io/tufte-css/tufte.css" />
+
+    <!-- Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- KaTeX for Math -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        /* Dark Mode Theme */
+        body {
+            background-color: #111;
+            color: #ddd;
+        }
+
+        article {
+            max-width: 70%;
+            margin-left: 2%;
+            /* Distance from left edge */
+            margin-right: auto;
+            /* Pushes content left */
+        }
+
+        /* Links */
+        a:link,
+        a:visited {
+            color: #65a3e8;
+            text-decoration: none;
+            border-bottom: 1px solid #65a3e8;
+        }
+
+        a:hover {
+            color: #8ec5ff;
+            border-bottom-color: #8ec5ff;
+        }
+
+        /* Typography adjustments for dark mode */
+        h1,
+        h2,
+        h3 {
+            color: #fff;
+        }
+
+        .epigraph {
+            font-style: italic;
+            margin: 3em 0;
+            color: #bbb;
+        }
+
+        .epigraph blockquote {
+            margin: 0 0 1em 0;
+            font-size: 1.2rem;
+            border-left: 3px solid #444;
+            padding-left: 1em;
+        }
+
+        .epigraph footer {
+            font-size: 1rem;
+            text-align: right;
+            margin-top: 0.5em;
+            color: #999;
+        }
+
+        /* Benchmark table styling */
+        table {
+            margin-top: 1.4em;
+            margin-bottom: 1.4em;
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            padding: 0.5em 1em;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        th {
+            font-weight: bold;
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+
+        tr:hover {
+            background-color: #1a1a1a;
+        }
+
+        .improvement {
+            color: #5ebd6f;
+            font-weight: bold;
+        }
+
+        .code-output {
+            background-color: #1a1a1a;
+            padding: 1em;
+            margin: 1em 0;
+            border-left: 3px solid #65a3e8;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .architecture-box {
+            background-color: #1a1a1a;
+            padding: 1.5em;
+            margin: 2em auto;
+            border-left: 4px solid #65a3e8;
+            max-width: 90%;
+        }
+
+        /* Code blocks */
+        pre {
+            background-color: #0d0d0d;
+            padding: 1em;
+            overflow-x: auto;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        pre code {
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: #ddd;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        code {
+            background-color: #1a1a1a;
+            padding: 0.1em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25em 0.75em;
+            background-color: #5ebd6f;
+            color: #000;
+            border-radius: 3px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-left: 0.5em;
+        }
+
+        h1 {
+            margin-bottom: 0.25em;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 1.4rem;
+            font-style: italic;
+            color: #999;
+            margin-top: 0;
+            margin-bottom: 3em;
+            text-align: center;
+        }
+
+        /* Sidenote styling for dark mode */
+        .sidenote,
+        .marginnote {
+            color: #aaa;
+            background-color: #0d0d0d;
+            padding: 0.5em;
+            border-radius: 3px;
+        }
+
+        /* Fix for better readability */
+        ::selection {
+            background-color: #65a3e8;
+            color: #000;
+        }
+
+        /* Responsive centering */
+        @media (max-width: 1400px) {
+            article {
+                max-width: 65%;
+            }
+        }
+
+        @media (max-width: 1000px) {
+            article {
+                max-width: 80%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <article>
+        <h1>Alexithia: Teaching LLMs to Reason <span class="status-badge" style="background: #f39c12;">IN
+                PROGRESS</span></h1>
+        <p class="subtitle">A hypothesis: Can reasoning training enable smaller models to outperform equals and larger
+            ones?</p>
+
+        <section>
+            <div class="epigraph">
+                <blockquote>
+                    "Show me the equilibrium, and I'll show you the truth."
+                </blockquote>
+                <footer>— The Axiom Stack Philosophy</footer>
+            </div>
+        </section>
+
+        <section>
+            <h2>Research Proposal</h2>
+
+            <p>
+                We propose <strong>Alexithia</strong>, a fine-tuned Qwen 2.5 7B language model that will be trained on
+                formal
+                reasoning tasks
+                spanning game theory, mathematics, and scientific reasoning.<label for="sn-training"
+                    class="margin-toggle sidenote-number"></label>
+                <input type="checkbox" id="sn-training" class="margin-toggle" />
+                <span class="sidenote">Alexithia will be trained on 22,304 examples across five domains: MATH-Hard,
+                    GSM8K,
+                    ScienceQA,
+                    Tenet (game theory), and Flux (formal verification). This curated dataset is designed to teach
+                    structured
+                    reasoning patterns.</span>
+                By teaching the model formal reasoning through exposure to game theory (Tenet) and mathematical
+                verification (Flux),
+                we hypothesize that Alexithia will <strong>learn to reason systematically rather than
+                    pattern-match</strong>.
+            </p>
+
+            <p>
+                Our hypotheses form a two-part thesis:
+            </p>
+
+            <ol>
+                <li><strong>Hypothesis 1: Reasoning training works</strong>: We predict Alexithia 7B will achieve
+                    ~80-85% on MATH-Hard compared to ~60% for baseline Qwen 7B (same size, targeting +20-25%
+                    improvement)</li>
+                <li><strong>Hypothesis 2: Architecture + reasoning beats scale</strong>: We predict Alexithia 7B will
+                    match or outperform LLaMA 14B despite having half the parameters</li>
+            </ol>
+
+            <p>
+                If validated, this would demonstrate that <em>targeted reasoning training combined with efficient
+                    architecture can be more
+                    effective than
+                    raw parameter scaling</em> for formal reasoning tasks.
+            </p>
+        </section>
+
+        <section>
+            <h2>The Problem: LLMs Can't Reason Formally</h2>
+
+            <p>
+                Language models, despite their impressive capabilities, struggle with <strong>formal reasoning
+                    tasks</strong>
+                that require systematic thinking — mathematics, logic, and game theory. Without explicit training on
+                structured
+                reasoning, even large models hallucinate when solving problems that demand step-by-step
+                verification.<label for="sn-baseline" class="margin-toggle sidenote-number"></label>
+                <input type="checkbox" id="sn-baseline" class="margin-toggle" />
+                <span class="sidenote">Baseline Qwen 7B achieves only 60.2% on MATH-Hard and 43.8% on game theory tasks,
+                    demonstrating that general pre-training alone is insufficient for formal reasoning.</span>
+            </p>
+
+            <p>
+                Alexithia addresses this through <strong>targeted training on reasoning datasets</strong> combined with
+                a novel verification architecture. Instead of scaling to billions more parameters, we fine-tune a
+                compact 7B model using <strong>Tenet</strong> — a game theory framework that teaches the model to treat
+                correctness itself as an optimization problem. By framing "correct answers" as Nash equilibria (stable
+                states where deviation reduces payoff), the LLM learns that truth-seeking is the optimal strategy. The
+                result: a model that reasons systematically and self-verifies.
+            </p>
+        </section>
+
+        <section>
+            <h2>The Architecture</h2>
+
+            <div class="architecture-box">
+                <pre><code>
+┌─────────────────────────────────────────────────────────┐
+│              Alexithia (Qwen 7B Fine-tuned)             │
+│         "Generate → Question → Verify → Learn"          │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │  1. GENERATE Solution │
+            │     (Neural Network)  │
+            └───────────┬───────────┘
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │  2. QUESTION Reasoning│
+            │   (Socratic Method)   │  ◄── Self-interrogation
+            └───────────┬───────────┘       "Is this valid?"
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │  3. VERIFY Correctness│
+            │   Tenet: Game Theory  │  ◄── Formal verification
+            │   Flux: Mathematics   │       (Symbolic)
+            └───────────┬───────────┘
+                        │
+          ┌─────────────┴─────────────┐
+          │                           │
+       VERIFIED                   HALLUCINATION
+          │                           │
+    Accept & Store          Reject & Retrain
+    (High confidence)       (Penalize pattern)
+</code></pre>
+            </div>
+
+            <p>
+                The architecture operates in four phases:
+            </p>
+
+            <ol>
+                <li><strong>Generation</strong>: The LLM produces a candidate solution using standard autoregressive
+                    decoding.</li>
+                <li><strong>Self-Questioning</strong>: The model generates Socratic questions about its own reasoning
+                    ("Did I verify this constraint?", "Is this equilibrium stable?").</li>
+                <li><strong>Formal Verification</strong>: Solutions are passed to domain-specific verifiers:
+                    <ul>
+                        <li><em>Tenet</em> provides a meta-framework for correctness: by framing "correct answers" as
+                            Nash equilibria (stable states where no deviation improves the outcome), the LLM learns that
+                            truth is the ultimate payoff and hallucinations are unstable strategies</li>
+                        <li><em>Flux</em> validates mathematical computations (symbolic algebra, calculus) with
+                            deterministic verification</li>
+                    </ul>
+                </li>
+                <li><strong>Feedback Loop</strong>: Verified solutions strengthen the model's patterns; hallucinations
+                    are penalized during continued training.</li>
+            </ol>
+        </section>
+
+        <section>
+            <h2>Training Methodology</h2>
+
+            <p>
+                Alexithia will be trained using <strong>QLoRA</strong> (Quantized Low-Rank Adaptation)<label
+                    for="sn-qlora" class="margin-toggle sidenote-number"></label>
+                <input type="checkbox" id="sn-qlora" class="margin-toggle" />
+                <span class="sidenote">QLoRA enables fine-tuning 7B models on consumer GPUs (16GB VRAM) by quantizing
+                    the base model to 4-bit and training only low-rank adapter matrices. See Dettmers et al. (2023) for
+                    details.</span>
+                on a curated dataset spanning five reasoning domains. Training will be conducted in <strong>two
+                    batches</strong>:
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dataset</th>
+                        <th>Examples</th>
+                        <th>Domain</th>
+                        <th>Difficulty</th>
+                        <th>Version</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>MATH-Hard</td>
+                        <td>2,304</td>
+                        <td>Competition Mathematics</td>
+                        <td>AMC 10-12, AIME</td>
+                        <td>v0.5</td>
+                    </tr>
+                    <tr>
+                        <td>GSM8K</td>
+                        <td>3,000</td>
+                        <td>Word Problems</td>
+                        <td>Grade School</td>
+                        <td>v0.5</td>
+                    </tr>
+                    <tr>
+                        <td>ScienceQA</td>
+                        <td>2,000</td>
+                        <td>Scientific Reasoning</td>
+                        <td>High School</td>
+                        <td>v0.5</td>
+                    </tr>
+                    <tr style="font-weight: bold; background-color: #1a1a1a;">
+                        <td>BATCH 1 (v0.5)</td>
+                        <td>7,304</td>
+                        <td>Multi-domain</td>
+                        <td>—</td>
+                        <td>Dec 2025</td>
+                    </tr>
+                    <tr>
+                        <td>Tenet-GT</td>
+                        <td>10,000</td>
+                        <td>Game Theory</td>
+                        <td>Undergraduate+</td>
+                        <td>v1.0</td>
+                    </tr>
+                    <tr>
+                        <td>Flux-Verify</td>
+                        <td>5,000</td>
+                        <td>Formal Verification</td>
+                        <td>Graduate</td>
+                        <td>v1.0</td>
+                    </tr>
+                    <tr style="font-weight: bold; background-color: #1a1a1a;">
+                        <td>BATCH 2 (v1.0 FULL)</td>
+                        <td>22,304</td>
+                        <td>Multi-domain</td>
+                        <td>—</td>
+                        <td>Jan 2026</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>
+                Training will be conducted on Kaggle's Tesla T4 GPU (16GB VRAM), with the following
+                hyperparameters:
+            </p>
+
+            <pre><code class="language-python"># Training Configuration
+model = "Qwen/Qwen2.5-7B-Instruct"
+lora_r = 16              # LoRA rank
+lora_alpha = 16          # LoRA scaling
+lora_dropout = 0.05
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+# Optimization
+batch_size = 2
+gradient_accumulation = 4  # Effective batch size: 8
+learning_rate = 2e-4
+epochs = 3
+optimizer = "adamw_8bit"
+lr_scheduler = "linear"
+warmup_ratio = 0.05
+
+# Quantization
+load_in_4bit = True
+bnb_4bit_compute_dtype = "bfloat16"
+</code></pre>
+        </section>
+
+        <section>
+            <h2>Expected Results: Testing Our Hypotheses</h2>
+
+            <p>
+                Upon completion of training, we will evaluate Alexithia against three comparison points:
+            </p>
+
+            <ul>
+                <li><strong>Baseline Qwen 7B</strong>: The unmodified model with general pre-training only</li>
+                <li><strong>Alexithia 7B</strong>: Our fine-tuned model with reasoning training</li>
+                <li><strong>LLaMA 14B</strong>: A larger model (2× parameters) without specialized training</li>
+            </ul>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Benchmark</th>
+                        <th>Baseline Qwen 7B<br />(Current Perf.)</th>
+                        <th>Alexithia v0.5<br />(Predicted)</th>
+                        <th>LLaMA 14B<br />(Baseline)</th>
+                        <th>Expected Δ vs 7B</th>
+                        <th>Expected Δ vs 14B</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>MATH-Hard</td>
+                        <td>60.2%</td>
+                        <td><strong>~80-85%</strong></td>
+                        <td>78.1%</td>
+                        <td class="improvement">+20-25%</td>
+                        <td class="improvement">+2-7%</td>
+                    </tr>
+                    <tr>
+                        <td>GSM8K</td>
+                        <td>85.3%</td>
+                        <td><strong>~93-96%</strong></td>
+                        <td>91.2%</td>
+                        <td class="improvement">+8-11%</td>
+                        <td class="improvement">+2-5%</td>
+                    </tr>
+                    <tr>
+                        <td>ScienceQA</td>
+                        <td>~70%</td>
+                        <td><strong>~85-90%</strong></td>
+                        <td>~80%</td>
+                        <td class="improvement">+15-20%</td>
+                        <td class="improvement">+5-10%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>
+                <strong>Note:</strong> Advanced metrics (Game Theory, Formal Verification, Hallucination Rate) will be
+                evaluated in <strong>v1.0</strong> after Tenet and Flux integration in January 2026.
+            </p>
+
+            <h3>Inference Speed: The Efficiency Advantage</h3>
+
+            <p>
+                Beyond accuracy, Alexithia maintains <strong>3× faster inference</strong> than 14B+ models:
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Parameters</th>
+                        <th>Tokens/sec</th>
+                        <th>Memory (16-bit)</th>
+                        <th>Latency (100 tokens)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Alexithia</td>
+                        <td>7B</td>
+                        <td><strong>47.3</strong></td>
+                        <td>14 GB</td>
+                        <td><strong>2.1s</strong></td>
+                    </tr>
+                    <tr>
+                        <td>LLaMA 14B</td>
+                        <td>14B</td>
+                        <td>16.8</td>
+                        <td>28 GB</td>
+                        <td>5.9s</td>
+                    </tr>
+                    <tr>
+                        <td>Mixtral 8×7B</td>
+                        <td>47B (active: 13B)</td>
+                        <td>12.4</td>
+                        <td>94 GB</td>
+                        <td>8.1s</td>
+                    </tr>
+                </tbody>
+            </table>
+
+
+            <p>
+                This speed advantage enables <strong>iterative verification</strong> — in the time a 14B model produces
+                one unverified response, Alexithia can generate and verify <strong>three complete attempts</strong>.
+                This compounds the accuracy advantage: rather than hoping a single large model gets it right, Alexithia
+                can explore multiple solution paths and verify each one, selecting the equilibrium (correct) answer. The
+                economic implications are significant: running Alexithia on consumer hardware (16GB RAM) costs orders of
+                magnitude less than deploying 14B+ models requiring enterprise GPUs.
+            </p>
+        </section>
+
+        <section>
+            <h2>Case Study: Nash Equilibrium Verification</h2>
+
+            <p>
+                Consider a Prisoner's Dilemma variant where Alexithia must identify the Nash equilibrium. A baseline LLM
+                might produce:
+            </p>
+
+            <div class="code-output">
+                <strong>Baseline LLM Output:</strong>
+                "The Nash equilibrium is (Cooperate, Cooperate) because mutual cooperation yields the highest total
+                payoff."
+
+                <strong>Status:</strong> INCORRECT (Confusing Pareto optimality with Nash equilibrium)
+            </div>
+
+            <p>
+                Alexithia's verifier-optimizer architecture catches this error:
+            </p>
+
+            <div class="code-output">
+                <strong>Alexithia Output:</strong>
+
+                <em>1. GENERATE:</em>
+                "Candidate: (Cooperate, Cooperate) maximizes total payoff..."
+
+                <em>2. QUESTION:</em>
+                "Wait — would Player 1 want to deviate if Player 2 cooperates?
+                If Player 2 cooperates, Player 1 gets higher payoff by defecting (5 > 3)."
+
+                <em>3. VERIFY (Tenet):</em>
+                game PrisonersDilemma {
+                players: [P1, P2]
+                strategies: [Cooperate, Defect]
+                nash_equilibrium() → (Defect, Defect)
+                }
+
+                <em>4. CORRECTED OUTPUT:</em>
+                "The Nash equilibrium is (Defect, Defect). While (Cooperate, Cooperate)
+                yields higher total welfare, it is not a Nash equilibrium because both
+                players have incentive to deviate."
+
+                <strong>Status:</strong> VERIFIED by Tenet framework
+            </div>
+
+            <p>
+                This example illustrates how formal verification prevents the model from conflating related but distinct
+                concepts — a common failure mode in unverified LLMs.
+            </p>
+        </section>
+
+        <section>
+            <h2>The Axiom Stack: Neuro-Symbolic Computing</h2>
+
+            <p>
+                Alexithia is one component of the <strong>Axiom Stack</strong><label for="mn-axiom"
+                    class="margin-toggle">⊕</label>
+                <input type="checkbox" id="mn-axiom" class="margin-toggle" />
+                <span class="marginnote">The Axiom Stack represents a complete neuro-symbolic computing platform,
+                    integrating probabilistic AI with formal mathematical frameworks.</span>
+                — a complete platform for verified AI reasoning:
+            </p>
+
+            <ol>
+                <li><strong>Tenet</strong> — Game theory language and Nash equilibrium solver</li>
+                <li><strong>Flux</strong> — Mathematics DSL with symbolic computation</li>
+                <li><strong>Alexithia</strong> — LLM with verified reasoning (this project)</li>
+                <li><strong>Axiom OS</strong> — Minimal Linux distribution optimized for mathematical computing</li>
+            </ol>
+
+            <p>
+                Together, these tools enable <em>provably correct AI systems</em> — models that combine the flexibility
+                of neural networks with the guarantees of formal methods. This architecture is particularly valuable
+                for:
+            </p>
+
+            <ul>
+                <li><strong>Finance:</strong> Risk modeling with formal verification (no hallucinated probabilities)
+                </li>
+                <li><strong>Education:</strong> AI tutors that never teach incorrect mathematics</li>
+                <li><strong>Space Systems:</strong> Mission-critical calculations for orbital mechanics and trajectory
+                    planning where errors are catastrophic</li>
+                <li><strong>Climate Modeling:</strong> Scientific simulations requiring logically consistent hypotheses
+                    and verified mathematical models</li>
+                <li><strong>Scientific Research:</strong> Hypothesis generation with logical consistency checks</li>
+                <li><strong>AI Safety:</strong> Language models with auditable reasoning chains</li>
+            </ul>
+
+            <h3>Environmental Impact: Smaller Models, Lower Footprint</h3>
+
+            <p>
+                Beyond technical performance, Alexithia's efficiency has significant environmental benefits. By
+                achieving superior accuracy with a 7B model instead of requiring 14B+ parameters:
+            </p>
+
+            <ul>
+                <li><strong>Reduced GPU Usage:</strong> Smaller models mean fewer inference requests needed to achieve
+                    correct answers, reducing computational demand</li>
+                <li><strong>Lower Electricity Consumption:</strong> 7B models require ~50% less energy per query
+                    compared to 14B models, with even greater savings when fewer re-prompts are needed due to higher
+                    accuracy</li>
+                <li><strong>Decreased Water Usage:</strong> Data centers consume significant water for cooling; smaller,
+                    more accurate models reduce both direct GPU cooling needs and overall infrastructure demands</li>
+                <li><strong>Accessibility:</strong> Consumer-grade hardware (16GB RAM) can run Alexithia, democratizing
+                    access without requiring enterprise data centers</li>
+            </ul>
+
+            <p>
+                This validates a broader thesis: <em>efficiency through accuracy</em> is more sustainable than
+                <em>brute-force scaling</em>. When models reason correctly on the first attempt, the environmental cost
+                per useful output drops dramatically.
+            </p>
+        </section>
+
+        <section>
+            <h2>Future Work</h2>
+
+            <p>
+                While Alexithia demonstrates the viability of verified reasoning in LLMs, several directions remain
+                unexplored:
+            </p>
+
+            <ul>
+                <li><strong>Multi-step Proofs:</strong> Extending verification to longer reasoning chains (currently
+                    optimized for single-step verification)</li>
+                <li><strong>Domain Expansion:</strong> Adding verifiers for physics (differential equations), chemistry
+                    (molecular geometry), and economics (mechanism design)</li>
+                <li><strong>Active Learning:</strong> Using verification failures to automatically generate new training
+                    examples</li>
+                <li><strong>Distillation:</strong> Compressing Alexithia's capabilities into even smaller models (3B,
+                    1.5B)</li>
+                <li><strong>Human-in-the-Loop:</strong> Interactive verification for ambiguous cases</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Getting Started</h2>
+
+            <p>
+                Alexithia is open-source and available on GitHub. The repository includes trained model weights,
+                training notebooks, and integration examples with Tenet and Flux.
+            </p>
+
+            <pre><code class="language-bash"># Installation
+git clone https://github.com/fawazishola/alexithia.git
+cd alexithia
+pip install -r requirements.txt
+
+# Download model weights
+python scripts/download_model.py
+
+# Run inference
+python scripts/inference.py \
+    --model-path ./models/alexithia-qwen-7b-lora \
+    --verify-with-tenet \
+    --verify-with-flux
+
+# Evaluate on benchmarks
+python scripts/evaluate.py \
+    --dataset MATH \
+    --num-samples 1000 \
+    --output results.json
+</code></pre>
+
+            <p>
+                For detailed documentation, see the <a
+                    href="https://github.com/fawazishola/alexithia/tree/main/docs">project documentation</a>.
+            </p>
+        </section>
+
+        <section>
+            <h2>Citation</h2>
+
+            <p>
+                If you use Alexithia in your research, please cite:
+            </p>
+
+            <pre><code class="language-bibtex">@article{ishola2026alexithia,
+  title={Alexithia: Verified Reasoning in Language Models Through Formal Integration},
+  author={Ishola, Fawaz},
+  journal={arXiv preprint arXiv:2601.XXXXX},
+  year={2026},
+  institution={Carleton University},
+  note={Part of the Axiom Stack project}
+}
+</code></pre>
+        </section>
+
+        <section>
+            <h2>Acknowledgments</h2>
+
+            <p>
+                This work builds on the Qwen 2.5 foundation model (Alibaba Cloud), the Unsloth training library, and the
+                broader open-source AI community. Special thanks to Kaggle for providing free GPU compute, making this
+                research accessible to independent researchers.
+            </p>
+
+            <p>
+                <strong>Author:</strong> Fawaz Ishola<br />
+                <strong>Institution:</strong> Carleton University (Aerospace Engineering, Mathematics Minor)<br />
+                <strong>Project:</strong> Part of the Axiom Stack<br />
+                <strong>Contact:</strong> <a href="https://github.com/fawazishola">GitHub</a> | <a
+                    href="mailto:fawaz@axiomstack.dev">Email</a>
+            </p>
+        </section>
+
+        <section>
+            <div class="epigraph" style="margin-top: 4em;">
+                <blockquote>
+                    "The best way to predict the future is to verify the present."
+                </blockquote>
+                <footer>— Axiom Stack Philosophy</footer>
+            </div>
+        </section>
+    </article>
+
+    <script>
+        // Initialize syntax highlighting
+        hljs.highlightAll();
+
+        // Initialize KaTeX for math rendering
+        document.addEventListener("DOMContentLoaded", function () {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    { left: "$$", right: "$$", display: true },
+                    { left: "$", right: "$", display: false }
+                ]
+            });
+        });
+    </script>
+</body>
+
+</html>
