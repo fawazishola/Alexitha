@@ -42,7 +42,7 @@ This is part of the **Axiom Stack**, a complete neuro-symbolic computing platfor
          │                     │
     VERIFIED              HALLUCINATION
          │                     │
-    ✅ Accept           ❌ Reject & Retrain
+      Accept             Reject & Retrain
 ```
 
 ## Quick Start
